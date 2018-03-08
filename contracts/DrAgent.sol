@@ -82,6 +82,8 @@ contract StandardToken is ERC20 {
 
     uint256 totalSupply_;
 
+    mapping(address => mapping(address => uint256)) internal allowed;
+
     /**
     * @dev total number of tokens in existence
     */
@@ -113,9 +115,6 @@ contract StandardToken is ERC20 {
     function balanceOf(address _owner) public view returns (uint256 balance) {
         return balances[_owner];
     }
-
-    mapping(address => mapping(address => uint256)) internal allowed;
-
 
     /**
      * @dev Transfer tokens from one address to another
@@ -200,13 +199,35 @@ contract StandardToken is ERC20 {
 }
 
 
-interface tokenRecipient { function receiveApproval(address _from, uint256 _value, address _token, bytes _extraData) external; }
+contract tokenRecipient { function receiveApproval(address _from, uint256 _value, address _token, bytes _extraData) public; }
 
-contract DrAgentToken is StandardToken {
+contract Owned {
+    address public owner;
+
+    function Owned() {
+        owner = msg.sender;
+    }
+
+    modifier onlyOwner {
+        require(msg.sender == owner);
+        _;
+    }
+
+    function transferOwnership(address newOwner) onlyOwner {
+        owner = newOwner;
+    }
+}
+
+
+contract DrAgentToken is StandardToken, Owned {
     string public name = 'Dr.Agent';
     string public symbol = 'DRT';
     uint8 public decimals = 18;
     uint public INITIAL_SUPPLY = 10**28;
+    mapping (address => bool) public frozenAccount;
+
+    /* This generates a public event on the blockchain that will notify clients */
+    event FrozenFunds(address target, bool frozen);
 
     function DrAgentToken() public {
       totalSupply_ = INITIAL_SUPPLY;
@@ -230,5 +251,54 @@ contract DrAgentToken is StandardToken {
             spender.receiveApproval(msg.sender, _value, this, _extraData);
             return true;
         }
+    }
+
+    /**
+     * @notice `freeze? Prevent | Allow` `target` from sending & receiving tokens
+     * @param target Address to be frozen
+     * @param freeze either to freeze it or not
+     */
+    function freezeAccount(address target, bool freeze) onlyOwner public {
+        frozenAccount[target] = freeze;
+        FrozenFunds(target, freeze);
+    }
+
+    function transfer(address _to, uint256 _value) public returns (bool) {
+        require(_to != address(0));
+        require(_value <= balances[msg.sender]);
+        require(!frozenAccount[msg.sender]);                     // Check if sender is frozen
+        require(!frozenAccount[_to]);                            // Check if recipient is frozen
+        // SafeMath.sub will throw if there is not enough balance.
+        balances[msg.sender] = balances[msg.sender].sub(_value);
+        balances[_to] = balances[_to].add(_value);
+        Transfer(msg.sender, _to, _value);
+        return true;
+    }
+
+    function transferFrom(address _from, address _to, uint256 _value) public returns (bool) {
+        require(_to != address(0));
+        require(_value <= balances[_from]);
+        require(_value <= allowed[_from][msg.sender]);
+        require(!frozenAccount[_from]);                          // Check if sender is frozen
+        require(!frozenAccount[_to]);                            // Check if recipient is frozen
+        balances[_from] = balances[_from].sub(_value);
+        balances[_to] = balances[_to].add(_value);
+        allowed[_from][msg.sender] = allowed[_from][msg.sender].sub(_value);
+        Transfer(_from, _to, _value);
+        return true;
+    }
+
+    /**
+    * @dev Don't accept ETH
+    */
+    function () public payable {
+        revert();
+    }
+
+    /**
+    * @dev Owner can transfer out any accidentally sent ERC20 tokens
+    */
+    function transferAnyERC20Token(address tokenAddress, uint tokens) public onlyOwner returns (bool success) {
+        return ERC20(tokenAddress).transfer(owner, tokens);
     }
 }
