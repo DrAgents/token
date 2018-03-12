@@ -221,7 +221,7 @@ contract Owned {
 
 contract DrAgentToken is StandardToken, Owned {
     string public name = 'Dr.Agent';
-    string public symbol = 'DRT';
+    string public symbol = 'DRA';
     uint8 public decimals = 18;
     uint public INITIAL_SUPPLY = 10**28;
     mapping (address => bool) public frozenAccount;
