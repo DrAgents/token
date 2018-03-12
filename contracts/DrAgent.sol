@@ -204,7 +204,7 @@ contract tokenRecipient { function receiveApproval(address _from, uint256 _value
 contract Owned {
     address public owner;
 
-    function Owned() {
+    function Owned() public{
         owner = msg.sender;
     }
 
@@ -213,7 +213,7 @@ contract Owned {
         _;
     }
 
-    function transferOwnership(address newOwner) onlyOwner {
+    function transferOwnership(address newOwner) onlyOwner public{
         owner = newOwner;
     }
 }
